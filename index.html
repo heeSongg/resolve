@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我的静态提效工具箱</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:system-ui, sans-serif}
+body{padding:20px;max-width:1200px;margin:0 auto;background:#f5f7fa}
+.tab-box{margin-bottom:16px}
+.tab-btn{padding:8px 16px;border:none;background:#e2e8f0;cursor:pointer;font-size:14px}
+.tab-btn.active{background:#3b82f6;color:#fff}
+.panel{display:none}
+.panel.active{display:block}
+textarea{width:100%;min-height:220px;padding:10px;border:1px solid #cbd5e0;border-radius:6px;font-family:monospace;font-size:14px;margin:8px 0}
+.btns button{padding:7px 12px;margin:4px;border:none;border-radius:4px;background:#3b82f6;color:white;cursor:pointer}
+.btns button:hover{background:#2563eb}
+.info{margin:8px 0;color:#475569}
+</style>
+</head>
+<body>
+<h2>静态提效工具箱</h2>
+<div class="tab-box">
+  <button class="tab-btn active" data-tab="json">JSON格式化</button>
+  <button class="tab-btn" data-tab="time">时间戳转换</button>
+  <button class="tab-btn" data-tab="text">文本处理</button>
+</div>
+
+<!-- JSON面板 -->
+<div class="panel active" id="json">
+  <div class="btns">
+    <button onclick="formatJson()">格式化JSON</button>
+    <button onclick="compressJson()">压缩JSON</button>
+    <button onclick="copyResult('jsonOut')">复制结果</button>
+  </div>
+  <textarea id="jsonIn" placeholder="粘贴JSON在这里"></textarea>
+  <textarea id="jsonOut" readonly></textarea>
+  <div class="info" id="jsonTip"></div>
+</div>
+
+<!-- 时间戳面板 -->
+<div class="panel" id="time">
+  <div class="btns">
+    <button onclick="tsToDate()">时间戳转日期</button>
+    <button onclick="dateToTs()">日期转时间戳</button>
+    <button onclick="getNowTs()">获取当前时间戳</button>
+  </div>
+  <div class="info">输入10位/13位时间戳 或 yyyy-MM-dd HH:mm:ss</div>
+  <textarea id="timeIn" placeholder="输入时间戳或日期"></textarea>
+  <textarea id="timeOut" readonly></textarea>
+</div>
+
+<!-- 文本处理面板 -->
+<div class="panel" id="text">
+  <div class="btns">
+    <button onclick="trimAll()">去除首尾空格+空行</button>
+    <button onclick="addPrefix()">每行加前缀</button>
+    <button onclick="addSuffix()">每行加后缀</button>
+    <button onclick="copyResult('textOut')">复制结果</button>
+  </div>
+  <input id="preStr" placeholder="前缀">
+  <input id="sufStr" placeholder="后缀">
+  <textarea id="textIn" placeholder="粘贴多行文本"></textarea>
+  <textarea id="textOut" readonly></textarea>
+</div>
+
+<script>
+// Tab切换
+const tabs = document.querySelectorAll('.tab-btn');
+tabs.forEach(btn=>{
+  btn.onclick = ()=>{
+    tabs.forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  }
+})
+
+// JSON
+function formatJson(){
+  try{
+    const j = JSON.parse(document.getElementById('jsonIn').value);
+    document.getElementById('jsonOut').value = JSON.stringify(j,null,2);
+    document.getElementById('jsonTip').textContent = "✅ JSON合法";
+  }catch(e){
+    document.getElementById('jsonTip').textContent = "❌ JSON解析错误: "+e.message;
+  }
+}
+function compressJson(){
+  try{
+    const j = JSON.parse(document.getElementById('jsonIn').value);
+    document.getElementById('jsonOut').value = JSON.stringify(j);
+    document.getElementById('jsonTip').textContent = "✅ 已压缩";
+  }catch(e){
+    document.getElementById('jsonTip').textContent = "❌ JSON解析错误: "+e.message;
+  }
+}
+
+// 时间戳
+function tsToDate(){
+  let v = document.getElementById('timeIn').value.trim();
+  let ts = Number(v);
+  if(v.length===10) ts *=1000;
+  const d = new Date(ts);
+  document.getElementById('timeOut').value = d.toLocaleString();
+}
+function dateToTs(){
+  const str = document.getElementById('timeIn').value.trim();
+  const t = new Date(str).getTime();
+  document.getElementById('timeOut').value = t;
+}
+function getNowTs(){
+  document.getElementById('timeOut').value = Date.now();
+}
+
+// 文本工具
+function trimAll(){
+  const lines = document.getElementById('textIn').value.split('\n')
+    .map(x=>x.trim())
+    .filter(x=>x!=='');
+  document.getElementById('textOut').value = lines.join('\n');
+}
+function addPrefix(){
+  const pre = document.getElementById('preStr').value;
+  const lines = document.getElementById('textIn').value.split('\n');
+  document.getElementById('textOut').value = lines.map(x=>pre+x).join('\n');
+}
+function addSuffix(){
+  const suf = document.getElementById('sufStr').value;
+  const lines = document.getElementById('textIn').value.split('\n');
+  document.getElementById('textOut').value = lines.map(x=>x+suf).join('\n');
+}
+
+// 复制
+function copyResult(id){
+  const el = document.getElementById(id);
+  el.select();document.execCommand('copy');
+  alert("已复制");
+}
+</script>
+</body>
+</html>
