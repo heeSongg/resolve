@@ -1,134 +1,130 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>背单词小工具</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0;font-family:system-ui, sans-serif}
-body{padding:30px;max-width:700px;margin:0 auto;background:#f5f7fa}
-h2{text-align:center;margin-bottom:24px;color:#222}
-.card-wrap{perspective:1000px;margin-bottom:24px}
-#card{
-  width:100%;
-  height:260px;
-  position:relative;
-  transform-style:preserve-3d;
-  transition: transform 0.5s;
-  cursor:pointer;
-}
-#card.flipped{transform: rotateY(180deg)}
-.card-face{
-  position:absolute;width:100%;height:100%;
-  backface-visibility:hidden;
-  display:flex;align-items:center;justify-content:center;
-  border-radius:12px;padding:24px;font-size:28px;text-align:center;
-  box-shadow:0 2px 10px #00000018;
-}
-.front{background:#ffffff;color:#2563eb;}
-.back{background:#2563eb;color:#fff;transform:rotateY(180deg)}
-.btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-button{padding:10px 18px;border:none;border-radius:6px;background:#3b82f6;color:white;font-size:15px;cursor:pointer}
-button:hover{background:#2563eb}
-button.good{background:#10b981}
-button.reset{background:#ef4444}
-.info{text-align:center;margin:16px 0;font-size:16px;color:#475569}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>销售一对一提醒工具</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <style>
+    * {box-sizing: border-box;font-family: system-ui, sans-serif;}
+    body {padding:20px;max-width:1200px;margin:0 auto;background:#f7f8fa;}
+    .card {background:#fff;padding:20px;border-radius:10px;margin-bottom:16px;box-shadow:0 1px 4px #00000012;}
+    .row {display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:10px 0;}
+    button {padding:8px 14px;cursor:pointer;border:none;border-radius:6px;background:#2563eb;color:#fff;font-size:14px;}
+    button.secondary {background:#6b7280;}
+    textarea, select {padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px;}
+    #preview-wrap {border:1px solid #eee;padding:16px;border-radius:8px;background:#fff;}
+    .user-item {padding:6px 0;border-bottom:1px solid #f1f1f1;}
+    .template-area {width:100%;height:120px;}
+    .result-text {width:100%;height:180px;}
+  </style>
 </head>
 <body>
-<h2>📖 单词卡片</h2>
-<div class="info">进度：<span id="progress">0/0</span></div>
-<div class="card-wrap">
-  <div id="card" onclick="flipCard()">
-    <div class="card-face front" id="wordFront"></div>
-    <div class="card-face back" id="wordBack"></div>
+  <div class="card">
+    <h3>1. 上传用户CSV/Excel文件</h3>
+    <p>表格字段建议：销售老师姓名、学员姓名、学员电话、跟进阶段、备注</p>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
   </div>
-</div>
-<div class="btns">
-  <button onclick="prevWord()">上一个</button>
-  <button onclick="nextWord()">下一个</button>
-  <button class="good" onclick="markMastered()">标记已掌握</button>
-  <button class="reset" onclick="resetAll()">重置学习记录</button>
-</div>
+
+  <div class="card">
+    <h3>2. 选择销售老师</h3>
+    <div class="row">
+      <select id="sellerSelect">
+        <option value="">请先上传文件</option>
+      </select>
+      <button id="filterBtn">筛选该老师学员</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>3. 学员列表预览（可转图片）</h3>
+    <div id="preview-wrap">
+      <div id="previewList">暂无数据</div>
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <button id="copyImgBtn">复制列表为图片</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>4. 话术模板设置</h3>
+    <p>变量：{{teacherName}} 老师名字，{{userCount}} 未出单学员数量</p>
+    <textarea class="template-area" id="templateInput">@{{teacherName}} 老师，本月一对一提醒：
+你名下还有 {{userCount}} 位学员暂未出单，请优先触达跟进。
+学员清单见图片，请尽快联系，有问题随时沟通。</textarea>
+    <div class="row">
+      <button id="genTextBtn">生成话术</button>
+      <button class="secondary" id="copyTextBtn">复制话术</button>
+    </div>
+    <textarea class="result-text" id="resultText" readonly></textarea>
+  </div>
 
 <script>
-// ========== 在这里修改你的单词库 ==========
-const wordList = [
-  {en:"mathematician",cn:"n.数学家"},
-  {en:"mathematization",cn:"n.数学化"},
-  {en:"algorithm",cn:"n.算法"},
-  {en:"variable",cn:"n.变量"},
-  {en:"function",cn:"n.函数；功能"},
-  {en:"static",cn:"adj.静态的"},
-  {en:"deploy",cn:"v.部署"},
-  {en:"repository",cn:"n.仓库"},
-  {en:"accessibility",cn:"n.可访问性，无障碍"},
-  {en:"compact",cn:"adj.紧凑的；简洁的"}
-];
-// ===========================================
+let rawData = [];
+let sellerList = [];
+let currentSeller = "";
+let currentUserList = [];
 
-let mastered = JSON.parse(localStorage.getItem('wordMastered')) || [];
-let currentIndex = 0;
-let isFlipped = false;
-
-// 获取未掌握单词列表
-function getStudyList(){
-  return wordList.filter((_,idx)=>!mastered.includes(idx));
-}
-
-function render(){
-  const list = getStudyList();
-  document.getElementById('progress').textContent = `${currentIndex+1}/${list.length}`;
-  if(list.length ===0){
-    document.getElementById('wordFront').textContent = "🎉 全部单词已掌握";
-    document.getElementById('wordBack').textContent = "点击重置继续学习";
-    return;
+// 读取Excel/CSV
+document.getElementById('fileInput').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const data = new Uint8Array(e.target.result);
+    const workbook = XLSX.read(data, {type: 'array'});
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    rawData = XLSX.utils.sheet_to_json(firstSheet);
+    // 提取销售老师去重列表
+    sellerList = [...new Set(rawData.map(item=>item["销售老师姓名"]).filter(Boolean))];
+    const sel = document.getElementById('sellerSelect');
+    sel.innerHTML = `<option value="">--选择老师--</option>`;
+    sellerList.forEach(name=>{
+      sel.innerHTML += `<option value="${name}">${name}</option>`;
+    })
+    alert(`读取成功，共${rawData.length}条学员数据，${sellerList.length}位销售老师`);
   }
-  const word = list[currentIndex];
-  document.getElementById('wordFront').textContent = word.en;
-  document.getElementById('wordBack').textContent = word.cn;
-  isFlipped = false;
-  document.getElementById('card').classList.remove('flipped');
+  reader.readAsArrayBuffer(file);
+})
+
+// 筛选老师学员
+document.getElementById('filterBtn').onclick = function(){
+  currentSeller = document.getElementById('sellerSelect').value;
+  if(!currentSeller) return alert("请选择销售老师");
+  currentUserList = rawData.filter(item=> item["销售老师姓名"] === currentSeller);
+  const wrap = document.getElementById('previewList');
+  let html = `<p><b>${currentSeller}，未出单学员：${currentUserList.length}人</b></p>`;
+  currentUserList.forEach(u=>{
+    html += `<div class="user-item">学员：${u["学员姓名"]||""}｜电话：${u["学员电话"]||""}｜阶段：${u["跟进阶段"]||""}｜备注：${u["备注"]||""}</div>`
+  })
+  wrap.innerHTML = html;
 }
 
-function flipCard(){
-  isFlipped = !isFlipped;
-  document.getElementById('card').classList.toggle('flipped');
+// 复制预览区域为图片
+document.getElementById('copyImgBtn').onclick = async function(){
+  const dom = document.getElementById('preview-wrap');
+  const canvas = await html2canvas(dom, {scale:2});
+  canvas.toBlob(async blob=>{
+    const item = new ClipboardItem({ "image/png": blob });
+    await navigator.clipboard.write([item]);
+    alert("图片已复制！可以直接粘贴到微信/飞书");
+  })
 }
 
-function nextWord(){
-  const list = getStudyList();
-  if(currentIndex < list.length -1) currentIndex++;
-  else currentIndex = 0;
-  render();
+// 生成话术
+document.getElementById('genTextBtn').onclick = function(){
+  const tpl = document.getElementById('templateInput').value;
+  const count = currentUserList.length;
+  let text = tpl.replaceAll("{{teacherName}}", currentSeller).replaceAll("{{userCount}}", count);
+  document.getElementById('resultText').value = text;
 }
-
-function prevWord(){
-  const list = getStudyList();
-  if(currentIndex > 0) currentIndex--;
-  else currentIndex = list.length -1;
-  render();
+// 复制话术
+document.getElementById('copyTextBtn').onclick = function(){
+  const txt = document.getElementById('resultText');
+  txt.select();
+  navigator.clipboard.writeText(txt.value);
+  alert("话术已复制");
 }
-
-function markMastered(){
-  const list = getStudyList();
-  if(list.length ===0) return;
-  const wordOriginIndex = wordList.indexOf(list[currentIndex]);
-  if(!mastered.includes(wordOriginIndex)){
-    mastered.push(wordOriginIndex);
-    localStorage.setItem('wordMastered', JSON.stringify(mastered));
-  }
-  nextWord();
-}
-
-function resetAll(){
-  mastered = [];
-  localStorage.removeItem('wordMastered');
-  currentIndex =0;
-  render();
-}
-
-render();
 </script>
 </body>
 </html>
